@@ -1,120 +1,167 @@
 """
-Create Non-IID data splits for 10 federated clients
-Each client has skewed class distribution to simulate realistic heterogeneity
+Create Non-IID data splits for federated clients using Dirichlet distribution.
+Phase 2: Realistic heterogeneous partitioning — no hardcoded class ratios.
+
+The Dirichlet(alpha) approach:
+  For each class c, sample proportions p ~ Dir(alpha * 1_K) and allocate
+  that fraction of class-c samples to each client k.
+  Lower alpha  → more heterogeneous (clients dominated by one class)
+  Higher alpha → more uniform (closer to IID)
 """
 import pickle
 import numpy as np
 import os
 
-print("="*60)
-print("CREATING NON-IID CLIENT DATA SPLITS")
-print("="*60)
+# ── Configuration ──────────────────────────────────────────────────────────────
+CONFIG = {
+    'n_clients':   10,
+    'alpha':       0.5,    # Dirichlet concentration: lower = more heterogeneous
+    'min_samples': 500,    # Hard floor: every client gets at least this many samples
+    'random_seed': 42,
+    'input_path':  'data/adult_train.pkl',
+    'output_dir':  'data',
+}
 
-# Load preprocessed data
-print("\n📥 Loading preprocessed dataset...")
-with open('data/adult_processed.pkl', 'rb') as f:
+# ── Load training data ─────────────────────────────────────────────────────────
+print("=" * 60)
+print("CREATING NON-IID CLIENT DATA SPLITS (Dirichlet)")
+print("=" * 60)
+
+print(f"\n📥 Loading training data from {CONFIG['input_path']}...")
+with open(CONFIG['input_path'], 'rb') as f:
     data = pickle.load(f)
+
 X, y = data['X'], data['y']
-print(f"✅ Loaded {len(X)} samples")
+feature_names = data['feature_names']
+input_dim = data['input_dim']
+print(f"✅ Loaded {len(X)} training samples, {input_dim} features")
 
-# Configuration
-n_clients = 10
-samples_per_client = 2000
+n_clients = CONFIG['n_clients']
+alpha = CONFIG['alpha']
+classes = np.unique(y)
 
-# Get indices for each class
-idx_class0 = np.where(y == 0)[0]
-idx_class1 = np.where(y == 1)[0]
+min_samples = CONFIG['min_samples']
 
-print(f"\n📊 Dataset Statistics:")
-print(f"   Class 0 samples: {len(idx_class0)}")
-print(f"   Class 1 samples: {len(idx_class1)}")
-print(f"   Samples per client: {samples_per_client}")
+print(f"\n⚙️  Configuration:")
+print(f"   Clients:           {n_clients}")
+print(f"   Dirichlet alpha:   {alpha}  (lower = more heterogeneous)")
+print(f"   Min samples floor: {min_samples}")
 
-# Shuffle
-np.random.seed(42)  # For reproducibility
-np.random.shuffle(idx_class0)
-np.random.shuffle(idx_class1)
+# ── Dirichlet split ────────────────────────────────────────────────────────────
+np.random.seed(CONFIG['random_seed'])
 
-# Create skewed distributions (label skew)
-# This simulates Non-IID data where clients have different class ratios
-distributions = [
-    (0.9, 0.1),  # Client 1: 90% class 0 (heavy skew)
-    (0.8, 0.2),  # Client 2
-    (0.7, 0.3),  # Client 3
-    (0.6, 0.4),  # Client 4
-    (0.5, 0.5),  # Client 5: Balanced
-    (0.4, 0.6),  # Client 6
-    (0.3, 0.7),  # Client 7
-    (0.2, 0.8),  # Client 8
-    (0.1, 0.9),  # Client 9: 90% class 1 (heavy skew)
-    (0.5, 0.5),  # Client 10: Balanced
-]
+client_indices = [[] for _ in range(n_clients)]
 
-print(f"\n🎯 Creating {n_clients} clients with Non-IID distributions:")
-print(f"{'Client':<10} {'Samples':<10} {'Class 0':<12} {'Class 1':<12} {'Ratio':<15}")
-print("-"*60)
+for c in classes:
+    class_idx = np.where(y == c)[0].copy()
+    np.random.shuffle(class_idx)
 
-client_data_summary = []
+    # Sample K proportions from Dirichlet; lower alpha = one client dominates
+    proportions = np.random.dirichlet(alpha * np.ones(n_clients))
 
-for i, (ratio0, ratio1) in enumerate(distributions):
-    client_id = i + 1
-    n0 = int(samples_per_client * ratio0)
-    n1 = int(samples_per_client * ratio1)
+    # Convert to integer counts; fix rounding in last bucket
+    counts = (proportions * len(class_idx)).astype(int)
+    counts[-1] = len(class_idx) - counts[:-1].sum()
+    counts = np.maximum(counts, 0)   # guard against negatives from rounding
 
-    # Sample indices
-    start_idx0 = i * 1000 % len(idx_class0)
-    start_idx1 = i * 1000 % len(idx_class1)
+    start = 0
+    for k, count in enumerate(counts):
+        client_indices[k].extend(class_idx[start:start + count].tolist())
+        start += count
 
-    client_idx0 = idx_class0[start_idx0:start_idx0 + n0]
-    client_idx1 = idx_class1[start_idx1:start_idx1 + n1]
+# ── Enforce minimum sample floor ──────────────────────────────────────────────
+# Iteratively transfer samples from the largest client to any under-threshold
+# client. This preserves the Dirichlet heterogeneity character while preventing
+# pathologically tiny partitions that cause unstable local training.
+def _enforce_min_samples(indices, floor, seed):
+    rng = np.random.default_rng(seed)
+    changed = True
+    while changed:
+        changed = False
+        sizes = [len(c) for c in indices]
+        for k in range(len(indices)):
+            deficit = floor - sizes[k]
+            if deficit <= 0:
+                continue
+            donor = int(np.argmax(sizes))
+            if donor == k or sizes[donor] <= floor:
+                continue   # donor is itself or already at floor
+            arr = np.array(indices[donor])
+            rng.shuffle(arr)
+            indices[k].extend(arr[:deficit].tolist())
+            indices[donor] = arr[deficit:].tolist()
+            sizes[k] += deficit
+            sizes[donor] -= deficit
+            changed = True
+    return indices
 
-    # Handle wrap-around if needed
-    if len(client_idx0) < n0:
-        client_idx0 = np.concatenate(
-            [client_idx0, idx_class0[:n0 - len(client_idx0)]])
-    if len(client_idx1) < n1:
-        client_idx1 = np.concatenate(
-            [client_idx1, idx_class1[:n1 - len(client_idx1)]])
+client_indices = _enforce_min_samples(client_indices, min_samples, CONFIG['random_seed'])
 
-    client_indices = np.concatenate([client_idx0, client_idx1])
-    np.random.shuffle(client_indices)
+# Shuffle each client's local dataset
+for k in range(n_clients):
+    np.random.shuffle(client_indices[k])
 
-    client_X = X[client_indices]
-    client_y = y[client_indices]
+# ── Distribution summary ───────────────────────────────────────────────────────
+print(f"\n📊 Client Data Distribution (α={alpha}):")
+print(f"{'Client':<10} {'Total':<10} {'Class 0':<12} {'Class 1':<12} {'Class 0 %':<12}")
+print("-" * 60)
 
-    # Save client data
-    os.makedirs('data', exist_ok=True)
-    with open(f'data/client_{client_id}.pkl', 'wb') as f:
-        pickle.dump({'X': client_X, 'y': client_y, 'client_id': client_id}, f)
+summary = []
+for k, indices in enumerate(client_indices):
+    idx = np.array(indices)
+    client_y = y[idx]
+    c0 = int((client_y == 0).sum())
+    c1 = int((client_y == 1).sum())
+    pct0 = c0 / len(client_y) * 100 if len(client_y) > 0 else 0.0
+    summary.append({'client_id': k + 1, 'total': len(client_y), 'class0': c0, 'class1': c1, 'ratio0': pct0 / 100})
+    print(f"Client {k+1:<3}  {len(idx):<10} {c0:<12} {c1:<12} {pct0:.1f}%")
 
-    # Summary
-    actual_class0 = sum(client_y == 0)
-    actual_class1 = sum(client_y == 1)
-    ratio_str = f"{actual_class0}:{actual_class1}"
+print("-" * 60)
 
-    client_data_summary.append({
-        'client_id': client_id,
-        'total': len(client_y),
-        'class0': actual_class0,
-        'class1': actual_class1
-    })
+# ── Heterogeneity metrics ──────────────────────────────────────────────────────
+ratios = [s['ratio0'] for s in summary]
+totals = [s['total'] for s in summary]
+print(f"\n📈 Heterogeneity Metrics:")
+print(f"   Std Dev of Class-0 ratios: {np.std(ratios):.4f}  (higher = more Non-IID)")
+print(f"   Min samples per client:    {min(totals)}")
+print(f"   Max samples per client:    {max(totals)}")
+print(f"   Total samples distributed: {sum(totals)} / {len(X)}")
 
-    print(
-        f"Client {client_id:<3}  {len(client_y):<10} {actual_class0:<12} {actual_class1:<12} {ratio_str:<15}")
+# ── Save ───────────────────────────────────────────────────────────────────────
+os.makedirs(CONFIG['output_dir'], exist_ok=True)
+print(f"\n💾 Saving client data files...")
 
-print("-"*60)
+for k, indices in enumerate(client_indices):
+    idx = np.array(indices)
+    client_data = {
+        'X': X[idx],
+        'y': y[idx],
+        'client_id': k + 1,
+        'feature_names': feature_names,
+        'input_dim': input_dim,
+        'alpha': alpha,
+    }
+    path = os.path.join(CONFIG['output_dir'], f'client_{k + 1}.pkl')
+    with open(path, 'wb') as f:
+        pickle.dump(client_data, f)
+    print(f"   ✓ {path}  ({len(idx)} samples)")
 
-# Calculate heterogeneity metric (standard deviation of class ratios)
-class_ratios = [s['class0'] / s['total'] for s in client_data_summary]
-heterogeneity = np.std(class_ratios)
-print(f"\n📈 Non-IID Heterogeneity Metric:")
-print(f"   Std Dev of Class 0 ratios: {heterogeneity:.3f}")
-print(f"   (Higher value = more heterogeneous)")
+# ── Phase 4 adversarial client recommendations ────────────────────────────────
+# A good adversarial client for label-flipping needs:
+#   (a) enough samples → high FedAvg weight → meaningful poisoning impact
+#   (b) mixed class distribution → flipping labels actually changes predictions
+# Score = n_samples * 2 * min(ratio0, ratio1)  [0 if fully one-class, max if balanced]
+print(f"\n🎯 Phase 4: Adversarial Client Recommendations")
+print(f"   (label-flipping impact = sample weight × class balance)")
+print(f"{'Client':<10} {'Samples':<10} {'Class 0 %':<12} {'Impact Score':<14} {'Recommended':<12}")
+print("-" * 60)
+for s in sorted(summary, key=lambda x: -x['total'] * 2 * min(x['ratio0'], 1 - x['ratio0'])):
+    impact = s['total'] * 2 * min(s['ratio0'], 1 - s['ratio0'])
+    recommend = "✅ YES" if impact > 500 else "—"
+    print(f"Client {s['client_id']:<3}  {s['total']:<10} {s['ratio0']*100:<12.1f} {impact:<14.0f} {recommend}")
+print("-" * 60)
+print("   Designate the top 2 'YES' clients as adversaries in Phase 4.")
 
-print("\n💾 Saved files:")
-for i in range(1, n_clients + 1):
-    print(f"   ✓ data/client_{i}.pkl")
-
-print("\n" + "="*60)
+print("\n" + "=" * 60)
 print("✅ NON-IID CLIENT DATA CREATION COMPLETED!")
-print("="*60)
+print("=" * 60)
