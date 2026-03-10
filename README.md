@@ -1,95 +1,100 @@
 # Federated Learning: Privacy, Security, and Practical Challenges
 
-## 🎯 Project Overview
+## Project Overview
 
-This project implements a federated learning system with:
+A federated learning framework built on the UCI Adult Census dataset that investigates the interplay between **privacy**, **robustness**, **explainability**, and **non-IID data heterogeneity** — areas typically studied in isolation.
 
-- **Privacy Protection**: Differential privacy mechanisms
-- **Robustness**: Defense against adversarial attacks
-- **Interpretability**: SHAP-based model explanations
-- **Non-IID Data**: Realistic heterogeneous client distributions
+### Research Goal
 
-## 📁 Project Structure
+Combine differential privacy (DP-SGD), Byzantine-robust aggregation, and SHAP explainability within a single federated system operating under realistic non-IID conditions, and measure how each mechanism affects the others.
+
+## Current Status
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| 1 | Data pipeline & feature engineering (41 features, stratified split) | Complete |
+| 2 | Baseline FedAvg with non-IID splits & per-round evaluation | Complete |
+| 3 | Differential privacy (DP-SGD with Opacus, ε ∈ {0.1, 1.0, 10.0}) | Planned |
+| 4 | Adversarial attacks & robust aggregation (median, trimmed mean) | Planned |
+| 5 | SHAP explainability across all configurations | Planned |
+| 6 | Results analysis & paper write-up | Planned |
+
+**Baseline accuracy: 84.15%** (10 rounds, weighted FedAvg, Non-IID Dirichlet α=0.5)
+
+## Project Structure
 
 ```
-federated_privacy_project/
-├── data/                      # Dataset and client data splits
-├── models/                    # Neural network architectures
-├── data_processing/           # Data preprocessing scripts
-├── experiments/               # Experiment scripts
-├── results/                   # Outputs (models, plots, logs)
+Federated_Learning_Capstone/
+├── data_processing/
+│   ├── download_data.py            # UCI Adult download, 41-feature encoding, train/test split
+│   └── create_noniid_splits.py     # Dirichlet(α=0.5) non-IID partitioning, min-samples floor
+├── models/
+│   ├── mlp_model.py                # MLP architecture (41→128→64→1), model summary
+│   └── plot_architecture.py        # Visual model architecture flowchart
+├── experiments/
+│   └── baseline_fl_demo.py         # FedAvg training loop with per-round evaluation & logging
+├── results/
+│   ├── logs/                       # Per-round CSV metrics (loss, accuracy, F1, precision, recall)
+│   ├── models/                     # Saved model checkpoints (.pt)
+│   └── plots/                      # Convergence plots, architecture diagrams
+├── .gitignore
 └── README.md
 ```
 
-## 🚀 Quick Start (Day 1 Demo)
+## Quick Start
 
-### Step 1: Install Dependencies
+### 1. Install dependencies
 
 ```bash
 pip install torch pandas scikit-learn matplotlib numpy
 ```
 
-### Step 2: Download and Preprocess Data
+### 2. Download and preprocess data
 
 ```bash
-cd federated_privacy_project
 python data_processing/download_data.py
 ```
 
-**Output**: Dataset downloaded and preprocessed (30,162 samples)
+Downloads the UCI Adult dataset, applies full feature engineering (one-hot + binary encoding, 41 features), performs a stratified 80/20 train/test split, fits the scaler on training data only, and saves `adult_train.pkl` and `adult_test.pkl`.
 
-### Step 3: Test Model Architecture
-
-```bash
-python models/mlp_model.py
-```
-
-**Output**: Model created with 449 parameters
-
-### Step 4: Create Non-IID Client Data
+### 3. Create non-IID client splits
 
 ```bash
 python data_processing/create_noniid_splits.py
 ```
 
-**Output**: 10 clients created with heterogeneous distributions
+Partitions training data across 10 clients using Dirichlet(α=0.5) distribution. Enforces a minimum of 500 samples per client via a donor-transfer algorithm. Computes adversarial impact scores for Phase 4 client selection.
 
-### Step 5: Run Baseline Federated Learning
+### 4. Run baseline federated learning
 
 ```bash
 python experiments/baseline_fl_demo.py
 ```
 
-**Output**: 5 rounds of federated training across 10 clients
+Runs 10 rounds of weighted FedAvg across all 10 clients. Evaluates on a held-out test set every round. Logs metrics to CSV and generates convergence plots.
 
-## 📊 What This Demo Shows
+## Technical Details
 
-✅ **Working Data Pipeline**: UCI Adult dataset preprocessed  
-✅ **Model Architecture**: Lightweight MLP (449 parameters)  
-✅ **Non-IID Setup**: 10 clients with varying class distributions  
-✅ **Federated Training**: Simulated federated averaging (FedAvg)  
-✅ **Ready for GPU**: Code structure ready for DGX deployment
+### Data Pipeline
+- **Dataset**: UCI Adult Census (32,561 samples, binary classification: income >$50K)
+- **Features**: 41 after encoding (dropped `fnlwgt`, `education`; one-hot for categoricals; binary for sex, native_country)
+- **Split**: Stratified 80/20 train/test; scaler fit on train only
 
-## 🔜 Next Steps (After GPU Access)
+### Model Architecture
+- **Type**: Multi-Layer Perceptron (MLP)
+- **Layers**: Input(41) → Linear(128) → ReLU → Dropout(0.2) → Linear(64) → ReLU → Dropout(0.2) → Linear(1) → Sigmoid
+- **Parameters**: ~11,201
+- **Loss**: Binary Cross-Entropy
+- **Optimizer**: SGD (lr=0.01)
 
-1. **Differential Privacy**: Add noise to gradients (Opacus)
-2. **Adversarial Clients**: Implement label flipping attacks
-3. **Robust Aggregation**: Median/trimmed mean aggregation
-4. **Full Experiments**: Run all 4 experiment configurations
-5. **Interpretability**: SHAP analysis on trained model
+### Federated Setup
+- **Algorithm**: FedAvg with weighted aggregation (weights ∝ client sample count)
+- **Clients**: 10, full participation each round
+- **Non-IID**: Dirichlet(α=0.5) label distribution with 500-sample floor
+- **Local training**: 2 epochs, batch size 64 per round
+- **Evaluation**: Held-out test set every round (accuracy, F1, precision, recall)
 
-## 📝 Research Components
-
-| Component            | Status      | File                                      |
-| -------------------- | ----------- | ----------------------------------------- |
-| Baseline FL          | ✅ Complete | `experiments/baseline_fl_demo.py`         |
-| Non-IID Data         | ✅ Complete | `data_processing/create_noniid_splits.py` |
-| Differential Privacy | 🔄 Next     | `privacy/dp_mechanism.py`                 |
-| Adversarial Attacks  | 🔄 Next     | `attacks/label_flipping.py`               |
-| Robust Aggregation   | 🔄 Next     | `server/aggregation.py`                   |
-| Interpretability     | 🔄 Next     | `interpretability/shap_analysis.py`       |
-
-## 👥 Team
+## Team
 
 - Suraj Kumar Mandal Dhanuk (AP22110011480)
 - Bibek Bhandari (AP22110011483)
@@ -97,8 +102,3 @@ python experiments/baseline_fl_demo.py
 - Rajveer Singh Khanduja (AP22110010166)
 
 **Supervisor**: Dr. Saswat Kumar Ram
-
----
-
-**Date**: March 8, 2026  
-**Status**: Foundation complete, ready for DGX deployment
