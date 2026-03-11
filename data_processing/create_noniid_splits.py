@@ -27,14 +27,14 @@ print("=" * 60)
 print("CREATING NON-IID CLIENT DATA SPLITS (Dirichlet)")
 print("=" * 60)
 
-print(f"\n📥 Loading training data from {CONFIG['input_path']}...")
+print(f"\nLoading training data from {CONFIG['input_path']}...")
 with open(CONFIG['input_path'], 'rb') as f:
     data = pickle.load(f)
 
 X, y = data['X'], data['y']
 feature_names = data['feature_names']
 input_dim = data['input_dim']
-print(f"✅ Loaded {len(X)} training samples, {input_dim} features")
+print(f"Loaded {len(X)} training samples, {input_dim} features")
 
 n_clients = CONFIG['n_clients']
 alpha = CONFIG['alpha']
@@ -102,7 +102,7 @@ for k in range(n_clients):
     np.random.shuffle(client_indices[k])
 
 # ── Distribution summary ───────────────────────────────────────────────────────
-print(f"\n📊 Client Data Distribution (α={alpha}):")
+print(f"\nClient Data Distribution (α={alpha}):")
 print(f"{'Client':<10} {'Total':<10} {'Class 0':<12} {'Class 1':<12} {'Class 0 %':<12}")
 print("-" * 60)
 
@@ -121,7 +121,7 @@ print("-" * 60)
 # ── Heterogeneity metrics ──────────────────────────────────────────────────────
 ratios = [s['ratio0'] for s in summary]
 totals = [s['total'] for s in summary]
-print(f"\n📈 Heterogeneity Metrics:")
+print(f"\nHeterogeneity Metrics:")
 print(f"   Std Dev of Class-0 ratios: {np.std(ratios):.4f}  (higher = more Non-IID)")
 print(f"   Min samples per client:    {min(totals)}")
 print(f"   Max samples per client:    {max(totals)}")
@@ -129,7 +129,7 @@ print(f"   Total samples distributed: {sum(totals)} / {len(X)}")
 
 # ── Save ───────────────────────────────────────────────────────────────────────
 os.makedirs(CONFIG['output_dir'], exist_ok=True)
-print(f"\n💾 Saving client data files...")
+print(f"\nSaving client data files...")
 
 for k, indices in enumerate(client_indices):
     idx = np.array(indices)
@@ -151,17 +151,17 @@ for k, indices in enumerate(client_indices):
 #   (a) enough samples → high FedAvg weight → meaningful poisoning impact
 #   (b) mixed class distribution → flipping labels actually changes predictions
 # Score = n_samples * 2 * min(ratio0, ratio1)  [0 if fully one-class, max if balanced]
-print(f"\n🎯 Phase 4: Adversarial Client Recommendations")
+print(f"\nPhase 4: Adversarial Client Recommendations")
 print(f"   (label-flipping impact = sample weight × class balance)")
 print(f"{'Client':<10} {'Samples':<10} {'Class 0 %':<12} {'Impact Score':<14} {'Recommended':<12}")
 print("-" * 60)
 for s in sorted(summary, key=lambda x: -x['total'] * 2 * min(x['ratio0'], 1 - x['ratio0'])):
     impact = s['total'] * 2 * min(s['ratio0'], 1 - s['ratio0'])
-    recommend = "✅ YES" if impact > 500 else "—"
+    recommend = "YES" if impact > 500 else "—"
     print(f"Client {s['client_id']:<3}  {s['total']:<10} {s['ratio0']*100:<12.1f} {impact:<14.0f} {recommend}")
 print("-" * 60)
 print("   Designate the top 2 'YES' clients as adversaries in Phase 4.")
 
 print("\n" + "=" * 60)
-print("✅ NON-IID CLIENT DATA CREATION COMPLETED!")
+print("NON-IID CLIENT DATA CREATION COMPLETED!")
 print("=" * 60)
