@@ -1,5 +1,6 @@
+#experiments/baseline_fl_simple.py
 """
-Baseline Federated Learning Simulation (Simplified - No module imports)
+Baseline Federated Learning Simulation 
 Demonstrates basic federated averaging across 10 clients
 """
 import torch
@@ -117,7 +118,7 @@ if __name__ == "__main__":
     # Initialize global model
     global_model = SimpleMLPModel(input_dim=5)
     print(
-        f"\n🌍 Global model initialized ({sum(p.numel() for p in global_model.parameters())} parameters)")
+        f"\nGlobal model initialized ({sum(p.numel() for p in global_model.parameters())} parameters)")
 
     # Training loop
     print("\n" + "="*70)
@@ -153,17 +154,17 @@ if __name__ == "__main__":
                 f"   Client {client_id:2d} | Loss: {loss:.4f} | Samples: {len(X)}")
 
         # Aggregate using FedAvg
-        print(f"\n   🔄 Aggregating {len(client_weights)} client updates...")
+        print(f"\n Aggregating {len(client_weights)} client updates...")
         global_weights = federated_average(client_weights)
         global_model.load_state_dict(global_weights)
 
         avg_loss = np.mean(client_losses)
-        print(f"   📊 Round {round_num} Summary | Avg Loss: {avg_loss:.4f}")
+        print(f" Round {round_num} Summary | Avg Loss: {avg_loss:.4f}")
 
         # Evaluate on a test client
         X_test, y_test = load_client_data(5)  # Use client 5 (balanced)
         accuracy = evaluate_model(global_model, X_test, y_test)
-        print(f"   🎯 Global Model Accuracy (Client 5): {accuracy*100:.2f}%")
+        print(f" Global Model Accuracy (Client 5): {accuracy*100:.2f}%")
 
     print("\n" + "="*70)
     print("TRAINING COMPLETED")
@@ -173,10 +174,10 @@ if __name__ == "__main__":
     os.makedirs('results/models', exist_ok=True)
     torch.save(global_model.state_dict(),
                'results/models/baseline_fl_model.pt')
-    print(f"\n💾 Final model saved to: results/models/baseline_fl_model.pt")
+    print(f"\nFinal model saved to: results/models/baseline_fl_model.pt")
 
     # Final evaluation on all clients
-    print(f"\n📊 Final Evaluation Across All Clients:")
+    print(f"\nFinal Evaluation Across All Clients:")
     print("-"*70)
     accuracies = []
     for client_id in range(1, n_clients + 1):
@@ -190,9 +191,9 @@ if __name__ == "__main__":
     print(f"   Std Dev: {np.std(accuracies)*100:.2f}%")
 
     print("\n" + "="*70)
-    print("✅ FEDERATED LEARNING SIMULATION SUCCESSFUL!")
+    print("FEDERATED LEARNING SIMULATION SUCCESSFUL!")
     print("="*70)
-    print("\n📝 Next Steps:")
+    print("\nNext Steps:")
     print("   1. Add differential privacy (privacy/dp_mechanism.py)")
     print("   2. Add adversarial clients (attacks/label_flipping.py)")
     print("   3. Add robust aggregation (server/aggregation.py)")
