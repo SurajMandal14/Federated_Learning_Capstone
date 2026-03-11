@@ -36,7 +36,7 @@ print("=" * 60)
 print("DOWNLOADING AND PREPROCESSING UCI ADULT DATASET")
 print("=" * 60)
 
-print(f"\n📥 Downloading dataset from UCI repository...")
+print(f"\nDownloading dataset from UCI repository...")
 df = pd.read_csv(
     CONFIG['url'],
     names=COLUMNS,
@@ -44,13 +44,13 @@ df = pd.read_csv(
     engine='python',
     na_values='?',
 )
-print(f"✅ Downloaded {len(df)} samples")
+print(f"Downloaded {len(df)} samples")
 
 # ── Clean ──────────────────────────────────────────────────────────────────────
 print("\n🧹 Cleaning data (removing missing values, dropping redundant columns)...")
 df = df.dropna()
 df = df.drop(columns=DROP_COLS)
-print(f"✅ After cleaning: {len(df)} samples, {len(df.columns) - 1} raw features")
+print(f"After cleaning: {len(df)} samples, {len(df.columns) - 1} raw features")
 
 # ── Encode target ──────────────────────────────────────────────────────────────
 y = df['income'].apply(lambda x: 1 if '>50K' in x else 0).values
@@ -69,7 +69,7 @@ feature_names = list(df.columns)
 X = df.values.astype(float)
 input_dim = len(feature_names)
 
-print(f"\n📊 Feature Engineering:")
+print(f"\nFeature Engineering:")
 print(f"   Numerical (scaled): {NUMERICAL_COLS}")
 print(f"   Binary encoded:     sex, native_country")
 print(f"   One-hot encoded:    {CATEGORICAL_COLS}")
@@ -82,7 +82,7 @@ X_train, X_test, y_train, y_test = train_test_split(
     stratify=y,
     random_state=CONFIG['random_seed'],
 )
-print(f"\n📂 Stratified Train/Test Split ({int((1-CONFIG['test_size'])*100)}/{int(CONFIG['test_size']*100)}):")
+print(f"\nStratified Train/Test Split ({int((1-CONFIG['test_size'])*100)}/{int(CONFIG['test_size']*100)}):")
 print(f"   Train: {len(X_train)} samples")
 print(f"   Test:  {len(X_test)} samples  ← held-out, never seen by clients")
 
@@ -96,7 +96,7 @@ X_test = scaler.transform(X_test)
 for split_name, y_split in [('Train', y_train), ('Test', y_test)]:
     c0 = (y_split == 0).sum()
     c1 = (y_split == 1).sum()
-    print(f"\n📈 {split_name} Class Distribution:")
+    print(f"\n{split_name} Class Distribution:")
     print(f"   <=50K (Class 0): {c0} samples ({c0 / len(y_split) * 100:.1f}%)")
     print(f"   >50K  (Class 1): {c1} samples ({c1 / len(y_split) * 100:.1f}%)")
 
@@ -118,10 +118,10 @@ with open(f"{CONFIG['output_dir']}/adult_train.pkl", 'wb') as f:
 with open(f"{CONFIG['output_dir']}/adult_test.pkl", 'wb') as f:
     pickle.dump({'X': X_test, 'y': y_test, **metadata}, f)
 
-print(f"\n💾 Saved:")
+print(f"\nSaved:")
 print(f"   {CONFIG['output_dir']}/adult_train.pkl  ({len(X_train)} samples, {input_dim} features)")
 print(f"   {CONFIG['output_dir']}/adult_test.pkl   ({len(X_test)} samples, {input_dim} features)")
 
 print("\n" + "=" * 60)
-print("✅ PREPROCESSING COMPLETED SUCCESSFULLY!")
+print("PREPROCESSING COMPLETED SUCCESSFULLY!")
 print("=" * 60)
