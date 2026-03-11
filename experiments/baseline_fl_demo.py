@@ -1,3 +1,5 @@
+#experiments/baseline_fl_demo.py
+
 """
 Baseline Federated Learning Simulation (No Privacy, No Attacks).
 Phase 2: Proper FL with held-out test evaluation, per-round CSV logging,
