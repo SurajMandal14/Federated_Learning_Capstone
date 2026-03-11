@@ -143,7 +143,7 @@ def append_csv(path, row):
 # ── Convergence plot ───────────────────────────────────────────────────────────
 def plot_convergence(csv_path, plot_dir):
     if not HAS_MATPLOTLIB:
-        print("   ⚠️  matplotlib not available — skipping plots")
+        print("   matplotlib not available — skipping plots")
         return
 
     rounds, accs, losses, f1s = [], [], [], []
@@ -176,7 +176,7 @@ def plot_convergence(csv_path, plot_dir):
     plot_path = os.path.join(plot_dir, 'baseline_convergence.png')
     plt.savefig(plot_path, dpi=150)
     plt.close()
-    print(f"   📊 Saved: {plot_path}")
+    print(f"  Saved: {plot_path}")
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
@@ -186,7 +186,7 @@ if __name__ == "__main__":
 
     # Load held-out test set and derive input_dim from data (no hardcoding)
     X_test, y_test, input_dim = load_test_data()
-    print(f"\n📂 Held-out test set: {len(X_test)} samples, {input_dim} features")
+    print(f"\nHeld-out test set: {len(X_test)} samples, {input_dim} features")
 
     print(f"\n⚙️  Configuration:")
     for k, v in CONFIG.items():
@@ -200,7 +200,7 @@ if __name__ == "__main__":
     )
     total_params = sum(p.numel() for p in global_model.parameters())
     arch_str = f"{input_dim} → {' → '.join(map(str, CONFIG['hidden_dims']))} → 1"
-    print(f"\n🌍 Global model: {total_params} parameters  [{arch_str}]")
+    print(f"\nGlobal model: {total_params} parameters  [{arch_str}]")
 
     # Set up logging paths
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -213,7 +213,7 @@ if __name__ == "__main__":
     if HAS_SKLEARN:
         fieldnames += ['test_f1', 'test_precision', 'test_recall']
     init_csv(csv_path, fieldnames)
-    print(f"\n📝 Logging metrics to: {csv_path}")
+    print(f"\nLogging metrics to: {csv_path}")
 
     # RNG for client selection (reproducible)
     rng = np.random.default_rng(CONFIG['random_seed'])
@@ -223,7 +223,7 @@ if __name__ == "__main__":
     print("=" * 70)
 
     for round_num in range(1, CONFIG['n_rounds'] + 1):
-        print(f"\n📍 Round {round_num}/{CONFIG['n_rounds']}")
+        print(f"\nRound {round_num}/{CONFIG['n_rounds']}")
         print("-" * 70)
 
         # Random client subset each round
@@ -263,9 +263,9 @@ if __name__ == "__main__":
         # Evaluate on held-out test set every round
         metrics = evaluate(global_model, X_test, y_test)
 
-        print(f"\n   🔄 Aggregated {len(client_weights)} client updates (weighted FedAvg)")
-        print(f"   📉 Avg Train Loss:  {avg_train_loss:.4f}")
-        print(f"   🎯 Test Accuracy:   {metrics['accuracy']*100:.2f}%", end='')
+        print(f"\n Aggregated {len(client_weights)} client updates (weighted FedAvg)")
+        print(f"  Avg Train Loss:  {avg_train_loss:.4f}")
+        print(f"  Test Accuracy:   {metrics['accuracy']*100:.2f}%", end='')
         if 'f1' in metrics:
             print(f"   |  F1: {metrics['f1']:.4f}   "
                   f"Precision: {metrics['precision']:.4f}   "
@@ -295,19 +295,19 @@ if __name__ == "__main__":
     }, model_path)
 
     # Generate convergence plots
-    print(f"\n📈 Generating convergence plots...")
+    print(f"\nGenerating convergence plots...")
     plot_convergence(csv_path, plot_dir)
 
     print("\n" + "=" * 70)
     print("TRAINING COMPLETED")
     print("=" * 70)
-    print(f"\n💾 Model:   {model_path}")
-    print(f"📝 Metrics: {csv_path}")
+    print(f"\nModel:   {model_path}")
+    print(f"Metrics: {csv_path}")
 
     print("\n" + "=" * 70)
-    print("✅ FEDERATED LEARNING SIMULATION SUCCESSFUL!")
+    print("FEDERATED LEARNING SIMULATION SUCCESSFUL!")
     print("=" * 70)
-    print("\n📝 Next Steps:")
+    print("\nNext Steps:")
     print("   1. Add differential privacy     → privacy/dp_mechanism.py")
     print("   2. Simulate adversarial clients → attacks/label_flipping.py")
     print("   3. Add robust aggregation       → server/aggregation.py")
